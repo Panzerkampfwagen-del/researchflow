@@ -1,0 +1,107 @@
+[
+  {
+    "query": "post-training quantization for large language models",
+    "domain": "llm_quantization",
+    "expected_arxiv_ids": ["2210.17323", "2208.07339", "2211.10438", "2306.00978"],
+    "year_start": 2022,
+    "year_end": 2024
+  },
+  {
+    "query": "policy gradient methods for deep reinforcement learning",
+    "domain": "reinforcement_learning",
+    "expected_arxiv_ids": ["1707.06347", "1502.05477", "1312.5602"],
+    "year_start": 2013,
+    "year_end": 2018
+  },
+  {
+    "query": "denoising diffusion probabilistic models for image generation",
+    "domain": "generative_models",
+    "expected_arxiv_ids": ["2006.11239", "2010.02502", "2112.10752"],
+    "year_start": 2020,
+    "year_end": 2022
+  },
+  {
+    "query": "transformer self-attention architecture for sequence modeling",
+    "domain": "nlp_architecture",
+    "expected_arxiv_ids": ["1706.03762", "1810.04805"],
+    "year_start": 2017,
+    "year_end": 2019
+  },
+  {
+    "query": "vision transformers for image classification",
+    "domain": "computer_vision",
+    "expected_arxiv_ids": ["2010.11929"],
+    "year_start": 2020,
+    "year_end": 2021
+  },
+  {
+    "query": "parameter-efficient fine-tuning of pretrained language models",
+    "domain": "peft",
+    "expected_arxiv_ids": ["2106.09685", "2101.00190", "1902.00751"],
+    "year_start": 2019,
+    "year_end": 2022
+  },
+  {
+    "query": "retrieval-augmented generation for knowledge-intensive question answering",
+    "domain": "retrieval_augmented_generation",
+    "expected_arxiv_ids": ["2005.11401", "2004.04906", "2002.08909"],
+    "year_start": 2020,
+    "year_end": 2021
+  },
+  {
+    "query": "contrastive learning for self-supervised visual representations",
+    "domain": "self_supervised_learning",
+    "expected_arxiv_ids": ["2002.05709", "1911.05722", "2006.07733"],
+    "year_start": 2019,
+    "year_end": 2021
+  },
+  {
+    "query": "sparsely gated mixture of experts for scaling neural networks",
+    "domain": "mixture_of_experts",
+    "expected_arxiv_ids": ["1701.06538", "2101.03961", "2006.16668"],
+    "year_start": 2017,
+    "year_end": 2022
+  },
+  {
+    "query": "graph neural networks for node classification",
+    "domain": "graph_learning",
+    "expected_arxiv_ids": ["1609.02907", "1710.10903", "1706.02216"],
+    "year_start": 2016,
+    "year_end": 2018
+  },
+  {
+    "query": "generative adversarial networks for image synthesis",
+    "domain": "generative_models",
+    "expected_arxiv_ids": ["1406.2661", "1511.06434", "1701.07875"],
+    "year_start": 2014,
+    "year_end": 2018
+  },
+  {
+    "query": "real-time object detection in images",
+    "domain": "computer_vision",
+    "expected_arxiv_ids": ["1506.01497", "1506.02640", "1512.02325"],
+    "year_start": 2015,
+    "year_end": 2017
+  },
+  {
+    "query": "knowledge distillation for neural network compression",
+    "domain": "model_compression",
+    "expected_arxiv_ids": ["1503.02531", "1910.01108"],
+    "year_start": 2015,
+    "year_end": 2020
+  },
+  {
+    "query": "deep residual and densely connected convolutional networks",
+    "domain": "cnn_architecture",
+    "expected_arxiv_ids": ["1512.03385", "1409.1556", "1608.06993"],
+    "year_start": 2014,
+    "year_end": 2017
+  },
+  {
+    "query": "distributed word representations from large text corpora",
+    "domain": "word_embeddings",
+    "expected_arxiv_ids": ["1301.3781", "1310.4546"],
+    "year_start": 2013,
+    "year_end": 2014
+  }
+]

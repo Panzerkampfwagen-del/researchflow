@@ -1,0 +1,112 @@
+[
+  {
+    "arxiv_id": "2210.17323",
+    "title": "GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers",
+    "relevant_for_queries": ["LLM quantization", "post-training quantization", "weight quantization"],
+    "ground_truth": {
+      "methodology": "One-shot weight quantization using approximate second-order Hessian information",
+      "datasets": ["C4", "WikiText2", "PTB"],
+      "metrics": ["perplexity", "accuracy"],
+      "key_results": "Quantizes OPT-175B and BLOOM-176B to 3-4 bits in about four GPU hours with negligible perplexity increase"
+    }
+  },
+  {
+    "arxiv_id": "2208.07339",
+    "title": "LLM.int8(): 8-bit Matrix Multiplication for Transformers at Scale",
+    "relevant_for_queries": ["LLM quantization", "8-bit quantization", "outlier features"],
+    "ground_truth": {
+      "methodology": "Mixed-precision 8-bit matrix multiplication that isolates outlier feature dimensions in fp16",
+      "datasets": ["C4", "WikiText2"],
+      "metrics": ["perplexity", "zero-shot accuracy"],
+      "key_results": "Enables 8-bit inference for transformers up to 175B parameters with no measurable degradation in performance"
+    }
+  },
+  {
+    "arxiv_id": "2211.10438",
+    "title": "SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models",
+    "relevant_for_queries": ["LLM quantization", "activation quantization", "W8A8", "post-training quantization"],
+    "ground_truth": {
+      "methodology": "Training-free post-training quantization that migrates activation outliers into weights via a per-channel smoothing scale",
+      "datasets": ["WikiText2", "C4", "LAMBADA", "PIQA"],
+      "metrics": ["perplexity", "accuracy", "latency", "throughput"],
+      "key_results": "W8A8 quantization of OPT-175B with up to 1.56x speedup and 2x memory reduction at near-FP16 accuracy"
+    }
+  },
+  {
+    "arxiv_id": "2306.00978",
+    "title": "AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration",
+    "relevant_for_queries": ["LLM quantization", "weight quantization", "4-bit quantization", "activation-aware quantization"],
+    "ground_truth": {
+      "methodology": "Activation-aware weight quantization that protects salient weight channels using per-channel scaling derived from activation magnitudes",
+      "datasets": ["WikiText2", "C4"],
+      "metrics": ["perplexity", "accuracy", "throughput"],
+      "key_results": "4-bit weight quantization that outperforms GPTQ and delivers more than 3x speedup over FP16 with an efficient kernel"
+    }
+  },
+  {
+    "arxiv_id": "2305.14314",
+    "title": "QLoRA: Efficient Finetuning of Quantized LLMs",
+    "relevant_for_queries": ["quantized finetuning", "4-bit quantization", "QLoRA", "NF4"],
+    "ground_truth": {
+      "methodology": "4-bit NormalFloat quantization with double quantization and paged optimizers combined with low-rank adapter finetuning",
+      "datasets": ["Alpaca", "OASST1", "FLAN v2", "MMLU", "Vicuna"],
+      "metrics": ["accuracy", "MMLU score"],
+      "key_results": "Finetunes a 65B model on a single 48GB GPU; Guanaco reaches 99.3% of ChatGPT performance on the Vicuna benchmark"
+    }
+  },
+  {
+    "arxiv_id": "2306.03078",
+    "title": "SpQR: A Sparse-Quantized Representation for Near-Lossless LLM Weight Compression",
+    "relevant_for_queries": ["LLM quantization", "weight quantization", "outlier-aware quantization", "near-lossless compression"],
+    "ground_truth": {
+      "methodology": "Sparse-quantized representation that isolates outlier weights at high precision while compressing the remainder to 3-4 bits",
+      "datasets": ["WikiText2", "C4", "LAMBADA"],
+      "metrics": ["perplexity", "accuracy"],
+      "key_results": "Near-lossless 3.4-bit compression of LLMs, enabling 33B-parameter models to run on a single 24GB GPU"
+    }
+  },
+  {
+    "arxiv_id": "2308.13137",
+    "title": "OmniQuant: Omnidirectionally Calibrated Quantization for Large Language Models",
+    "relevant_for_queries": ["LLM quantization", "weight-activation quantization", "low-bit quantization", "post-training quantization"],
+    "ground_truth": {
+      "methodology": "Block-wise post-training quantization with learnable weight clipping and learnable equivalent transformation",
+      "datasets": ["WikiText2", "C4", "PIQA", "ARC"],
+      "metrics": ["perplexity", "zero-shot accuracy"],
+      "key_results": "Strong low-bit W4A4, W3 and W2 post-training quantization across LLaMA models, surpassing prior PTQ methods"
+    }
+  },
+  {
+    "arxiv_id": "2206.01861",
+    "title": "ZeroQuant: Efficient and Affordable Post-Training Quantization for Large-Scale Transformers",
+    "relevant_for_queries": ["LLM quantization", "INT8 quantization", "post-training quantization", "knowledge distillation"],
+    "ground_truth": {
+      "methodology": "Hardware-friendly post-training quantization with group-wise weight and token-wise activation quantization plus layer-by-layer distillation",
+      "datasets": ["GLUE", "LAMBADA", "PTB", "WikiText2"],
+      "metrics": ["accuracy", "perplexity", "latency"],
+      "key_results": "INT8 quantization of BERT- and GPT-style models with up to 5.19x latency reduction and minimal accuracy loss"
+    }
+  },
+  {
+    "arxiv_id": "2307.13304",
+    "title": "QuIP: 2-Bit Quantization of Large Language Models With Guarantees",
+    "relevant_for_queries": ["LLM quantization", "2-bit quantization", "weight quantization", "incoherence processing"],
+    "ground_truth": {
+      "methodology": "Quantization with incoherence processing that uses random orthogonal transforms to make weights and Hessians incoherent before adaptive rounding",
+      "datasets": ["WikiText2", "C4", "PTB"],
+      "metrics": ["perplexity", "zero-shot accuracy"],
+      "key_results": "First method to achieve viable 2-bit LLM quantization, with quality improving as model size increases"
+    }
+  },
+  {
+    "arxiv_id": "2305.17888",
+    "title": "LLM-QAT: Data-Free Quantization Aware Training for Large Language Models",
+    "relevant_for_queries": ["LLM quantization", "quantization-aware training", "KV cache quantization", "data-free quantization"],
+    "ground_truth": {
+      "methodology": "Data-free quantization-aware training that distills from data generated by the pretrained model and quantizes weights, activations and the KV cache",
+      "datasets": ["WikiText2", "C4"],
+      "metrics": ["accuracy", "perplexity", "zero-shot accuracy"],
+      "key_results": "4-bit weight and KV-cache quantization-aware training for LLaMA models that surpasses post-training quantization at low bit-widths"
+    }
+  }
+]
