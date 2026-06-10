@@ -1,0 +1,53 @@
+name: Deploy
+
+# Deploy runs only after the CI workflow completes successfully on main.
+# GitHub Actions cannot express `needs:` across workflows, so `workflow_run`
+# is the canonical way to gate deployment on "all CI jobs passed".
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy-backend:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}"
+
+      - name: Poll backend health
+        env:
+          RENDER_SERVICE_URL: ${{ secrets.RENDER_SERVICE_URL }}
+        run: |
+          if [ -z "$RENDER_SERVICE_URL" ]; then
+            echo "RENDER_SERVICE_URL not set; skipping health poll."
+            exit 0
+          fi
+          for i in $(seq 1 18); do
+            if curl -fsS "${RENDER_SERVICE_URL%/}/api/health"; then
+              echo "Backend healthy."
+              exit 0
+            fi
+            echo "Attempt $i: backend not ready, retrying in 10s..."
+            sleep 10
+          done
+          echo "Backend did not become healthy within 3 minutes."
+          exit 1
+
+  deploy-frontend:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Deploy to Vercel
+        working-directory: frontend
+        run: vercel --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
