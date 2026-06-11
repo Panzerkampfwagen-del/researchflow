@@ -8,6 +8,21 @@ interface QueryInputProps {
 
 const CURRENT_YEAR = new Date().getFullYear()
 
+const EXAMPLES: { label: string; query: string }[] = [
+  {
+    label: 'LLM quantization',
+    query: 'Recent advances in post-training quantization for large language models',
+  },
+  {
+    label: 'Parameter-efficient fine-tuning',
+    query: 'Parameter-efficient fine-tuning methods for pretrained language models',
+  },
+  {
+    label: 'Diffusion image generation',
+    query: 'Diffusion models for high-fidelity image generation',
+  },
+]
+
 export default function QueryInput({ onSessionCreated, disabled }: QueryInputProps) {
   const [query, setQuery] = useState('')
   const [yearStart, setYearStart] = useState(2020)
@@ -45,15 +60,32 @@ export default function QueryInput({ onSessionCreated, disabled }: QueryInputPro
   const isDisabled = disabled || loading
 
   return (
-    <form onSubmit={submit} className="w-full max-w-3xl mx-auto">
+    <form onSubmit={submit} className="mx-auto w-full max-w-3xl">
       <textarea
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         disabled={isDisabled}
         placeholder="e.g. Recent advances in post-training quantization for large language models"
         rows={3}
-        className="w-full resize-none rounded-lg bg-navy-light border border-navy-border px-4 py-3 text-base text-slate-100 placeholder-slate-500 focus:border-accent focus:outline-none disabled:opacity-50"
+        className="w-full resize-none rounded-xl border border-navy-border bg-navy-light px-4 py-3 text-base text-slate-100 placeholder-slate-500 transition focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40 disabled:opacity-50"
       />
+
+      {!isDisabled && query.trim().length === 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-500">Try:</span>
+          {EXAMPLES.map((ex) => (
+            <button
+              type="button"
+              key={ex.label}
+              onClick={() => setQuery(ex.query)}
+              className="rounded-full border border-navy-border bg-navy-light px-3 py-1 text-xs text-slate-400 transition hover:border-accent hover:text-slate-200"
+            >
+              {ex.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="mt-3 flex flex-wrap items-center gap-4">
         <label className="flex items-center gap-2 text-sm text-slate-400">
           From
@@ -64,7 +96,7 @@ export default function QueryInput({ onSessionCreated, disabled }: QueryInputPro
             max={CURRENT_YEAR}
             disabled={isDisabled}
             onChange={(e) => setYearStart(Number(e.target.value))}
-            className="w-24 rounded bg-navy-light border border-navy-border px-2 py-1 font-mono text-slate-100 focus:border-accent focus:outline-none"
+            className="w-24 rounded border border-navy-border bg-navy-light px-2 py-1 font-mono text-slate-100 focus:border-accent focus:outline-none"
           />
         </label>
         <label className="flex items-center gap-2 text-sm text-slate-400">
@@ -76,7 +108,7 @@ export default function QueryInput({ onSessionCreated, disabled }: QueryInputPro
             max={CURRENT_YEAR}
             disabled={isDisabled}
             onChange={(e) => setYearEnd(Number(e.target.value))}
-            className="w-24 rounded bg-navy-light border border-navy-border px-2 py-1 font-mono text-slate-100 focus:border-accent focus:outline-none"
+            className="w-24 rounded border border-navy-border bg-navy-light px-2 py-1 font-mono text-slate-100 focus:border-accent focus:outline-none"
           />
         </label>
         <button

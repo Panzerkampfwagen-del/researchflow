@@ -9,6 +9,9 @@
 body {
   margin: 0;
   background-color: #0a0f1e;
+  background-image: radial-gradient(55rem 28rem at 50% -8rem, rgba(59, 130, 246, 0.1), transparent 60%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   color: #e2e8f0;
   font-family: 'Inter', system-ui, sans-serif;
 }
