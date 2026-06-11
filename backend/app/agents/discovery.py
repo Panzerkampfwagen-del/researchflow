@@ -26,7 +26,7 @@ from app.retrieval.fusion import ranking_from_scores, reciprocal_rank_fusion
 
 logger = structlog.get_logger(__name__)
 
-ARXIV_ENDPOINT = "http://export.arxiv.org/api/query"
+ARXIV_ENDPOINT = "https://export.arxiv.org/api/query"
 SEMANTIC_SCHOLAR_ENDPOINT = "https://api.semanticscholar.org/graph/v1/paper/search"
 SEMANTIC_SCHOLAR_FIELDS = "title,authors,abstract,year,venue,citationCount,externalIds,url"
 ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
@@ -307,7 +307,12 @@ async def run_discovery(
 
     # The two sources are independent and rate-limited per host, so run them
     # concurrently instead of one full loop after the other.
-    async with httpx.AsyncClient(headers={"User-Agent": "ResearchFlow/1.0"}) as client:
+    # follow_redirects: arXiv now 301-redirects the bare http endpoint to https
+    # (HSTS); without this httpx returns the empty 301 body and discovery finds
+    # nothing. Harmless for the already-https endpoints.
+    async with httpx.AsyncClient(
+        headers={"User-Agent": "ResearchFlow/1.0"}, follow_redirects=True
+    ) as client:
         arxiv_papers, ss_papers = await asyncio.gather(
             _search_source(search_arxiv, settings.ARXIV_RATE_LIMIT_SECONDS),
             _search_source(search_semantic_scholar, settings.SEMANTIC_SCHOLAR_RATE_LIMIT_SECONDS),
