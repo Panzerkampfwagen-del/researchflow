@@ -80,21 +80,43 @@ docker compose up --build
 - The backend container runs `alembic upgrade head` before starting uvicorn, which creates the
   pgvector extension and all tables.
 
+> **Installing Docker (Linux / WSL2 Ubuntu).** Engine + the Compose plugin via the official
+> script, then enable the service (WSL2 ships systemd):
+>
+> ```bash
+> curl -fsSL https://get.docker.com | sudo sh
+> sudo usermod -aG docker $USER        # use docker without sudo — re-open the shell afterwards
+> sudo systemctl enable --now docker   # or, without systemd: sudo service docker start
+> docker --version && docker compose version
+> ```
+>
+> On Windows, **Docker Desktop** with WSL integration enabled is the simplest route.
+
 ### Local development (without Docker)
 
+Requires **Python 3.11**, **Node 20+**, and a local **PostgreSQL 15** with the `vector`
+extension (`CREATE EXTENSION IF NOT EXISTS vector;`).
+
 ```bash
-# Backend
+# Backend  →  http://localhost:8000
 cd backend
-python -m venv .venv && source .venv/bin/activate
+python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env                      # set GROQ_API_KEY, point DATABASE_URL at your Postgres
-alembic upgrade head
+cp .env.example .env          # set GROQ_API_KEY and point DATABASE_URL at your Postgres
+alembic upgrade head          # creates the pgvector extension + tables
 uvicorn app.main:app --reload
 
-# Frontend (in another terminal)
+# Frontend  →  http://localhost:5173   (new terminal)
 cd frontend
 npm install
-npm run dev                               # Vite proxies /api to http://localhost:8000
+npm run dev                   # Vite proxies /api to http://localhost:8000
+```
+
+To point a local frontend at an already-deployed backend (instead of the dev proxy), set
+`VITE_API_URL` when starting Vite:
+
+```bash
+VITE_API_URL=https://<your-backend>.onrender.com npm run dev
 ```
 
 ---
