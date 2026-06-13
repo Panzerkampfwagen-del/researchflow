@@ -21,6 +21,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.routes import papers, reports, research
 from app.core.config import settings
 from app.core.llm import embedding_client
+from app.db.database import Base, engine
 
 VERSION = "1.0.0"
 
@@ -45,6 +46,15 @@ logger = structlog.get_logger(__name__)
 async def lifespan(app: FastAPI):
     """Load the embedding model once at startup; tear down on shutdown."""
     _configure_logging()
+    from sqlalchemy import text
+    from app.db import models  # noqa: F401 - register models on Base.metadata
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("database_ready")
+    except Exception as exc:  # noqa: BLE001
+        logger.error("database_init_failed", error=str(exc))
     if settings.LOAD_EMBEDDINGS_ON_STARTUP:
         try:
             await asyncio.to_thread(embedding_client.load)
