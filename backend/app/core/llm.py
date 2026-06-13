@@ -19,7 +19,8 @@ from typing import TYPE_CHECKING, Any, TypeVar
 import anthropic
 import json_repair
 import structlog
-from groq import AsyncGroq, RateLimitError as GroqRateLimitError
+from groq import AsyncGroq
+from groq import RateLimitError as GroqRateLimitError
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import settings
@@ -259,14 +260,20 @@ class EmbeddingClient:
         try:
             from sentence_transformers import SentenceTransformer
 
-            logger.info("loading_embedding_model", model=settings.EMBEDDING_MODEL, backend="sentence-transformers")
+            logger.info(
+                "loading_embedding_model",
+                model=settings.EMBEDDING_MODEL,
+                backend="sentence-transformers",
+            )
             self._model = SentenceTransformer(settings.EMBEDDING_MODEL)
             self._backend = "sentence-transformers"
         except ImportError:
             from fastembed import TextEmbedding
 
             cache_dir = settings.FASTEMBED_CACHE_DIR or None
-            logger.info("loading_embedding_model", model=settings.EMBEDDING_MODEL, backend="fastembed")
+            logger.info(
+                "loading_embedding_model", model=settings.EMBEDDING_MODEL, backend="fastembed"
+            )
             self._model = TextEmbedding(model_name=settings.EMBEDDING_MODEL, cache_dir=cache_dir)
             self._backend = "fastembed"
 
