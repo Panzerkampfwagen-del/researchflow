@@ -27,23 +27,19 @@ services:
         value: llama-3.3-70b-versatile
       - key: GROQ_EXTRACTION_MODEL
         value: llama-3.1-8b-instant
+
+      # fastembed ONNX model — 384-dim, no PyTorch, ~60 MB RAM
       - key: EMBEDDING_MODEL
-        value: all-MiniLM-L6-v2
-      # Cross-encoder reranker (~80 MB) + NLI grounding (~480 MB) both disabled
-      # on the free tier to keep peak RAM under 512 MB. Discovery still uses
-      # hybrid BM25 + dense scoring, so result quality remains good.
+        value: BAAI/bge-small-en-v1.5
+      - key: FASTEMBED_CACHE_DIR
+        value: /app/.cache/fastembed
+
+      # Cross-encoder reranker and NLI grounding both disabled on the free tier
+      # to keep peak RAM well under 512 MB (no sentence-transformers/PyTorch loaded).
       - key: RERANK_ENABLED
         value: "false"
       - key: GROUNDING_ENABLED
         value: "false"
-
-      # Models are pre-baked into the Docker image — no HF network access needed
-      - key: HF_HOME
-        value: /app/.cache/huggingface
-      - key: HF_HUB_OFFLINE
-        value: "1"
-      - key: TRANSFORMERS_OFFLINE
-        value: "1"
 
 databases:
   - name: researchflow-db

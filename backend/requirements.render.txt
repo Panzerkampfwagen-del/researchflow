@@ -1,0 +1,41 @@
+# Render production requirements — replaces torch + sentence-transformers with
+# fastembed (ONNX Runtime backend, ~60 MB RAM vs ~350 MB for the PyTorch stack).
+# Reranker and grounding are disabled via env vars in render.yaml, so their
+# lazy sentence-transformers imports are never reached.
+
+# Web framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# Database
+sqlalchemy==2.0.36
+asyncpg==0.30.0
+greenlet==3.1.1
+alembic==1.14.0
+pgvector==0.3.6
+
+# Embeddings — ONNX, no PyTorch dependency
+fastembed==0.4.0
+numpy==1.26.4
+
+# LLM providers
+groq==0.13.1
+anthropic==0.42.0
+
+# HTTP / data contracts
+httpx==0.28.1
+pydantic==2.10.4
+pydantic-settings==2.7.0
+
+# Knowledge graph
+networkx==3.4.2
+
+# Retrieval, robustness, verification
+rank-bm25==0.2.2
+rapidfuzz==3.10.1
+json-repair==0.30.3
+
+# Logging & observability
+structlog==24.4.0
+prometheus-client==0.21.1

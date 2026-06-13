@@ -241,18 +241,34 @@ class LLMClient:
 
 
 class EmbeddingClient:
-    """Lazy wrapper around a local sentence-transformers model."""
+    """Lazy embedding wrapper.
+
+    Prefers sentence-transformers (full stack, local/Docker). Falls back to
+    fastembed (ONNX Runtime, no PyTorch) when sentence-transformers is not
+    installed — used on the Render free tier to stay within 512 MB RAM.
+    """
 
     def __init__(self) -> None:
         self._model: Any | None = None
+        self._backend: str = ""
 
     def load(self) -> None:
         """Load the embedding model once. Safe to call repeatedly."""
-        if self._model is None:
+        if self._model is not None:
+            return
+        try:
             from sentence_transformers import SentenceTransformer
 
-            logger.info("loading_embedding_model", model=settings.EMBEDDING_MODEL)
+            logger.info("loading_embedding_model", model=settings.EMBEDDING_MODEL, backend="sentence-transformers")
             self._model = SentenceTransformer(settings.EMBEDDING_MODEL)
+            self._backend = "sentence-transformers"
+        except ImportError:
+            from fastembed import TextEmbedding
+
+            cache_dir = settings.FASTEMBED_CACHE_DIR or None
+            logger.info("loading_embedding_model", model=settings.EMBEDDING_MODEL, backend="fastembed")
+            self._model = TextEmbedding(model_name=settings.EMBEDDING_MODEL, cache_dir=cache_dir)
+            self._backend = "fastembed"
 
     def embed(self, texts: list[str]) -> np.ndarray:
         """Embed a list of texts into a ``(len(texts), dim)`` float array.
@@ -260,7 +276,11 @@ class EmbeddingClient:
         Synchronous and CPU-bound; call via ``aembed`` from async code so the
         event loop is not blocked.
         """
+        import numpy as np
+
         self.load()
+        if self._backend == "fastembed":
+            return np.array(list(self._model.embed(texts)))
         return self._model.encode(
             texts,
             convert_to_numpy=True,

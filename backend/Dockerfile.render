@@ -1,14 +1,14 @@
-# Stage 1 — install Python dependencies from PyPI
+# Render production image — uses fastembed (ONNX) instead of PyTorch.
+# Peak RAM at runtime: ~150 MB vs ~400 MB for the full sentence-transformers stack.
+
+# Stage 1 — install dependencies from PyPI
 FROM python:3.11-slim AS builder
 
 WORKDIR /build
-COPY requirements.txt .
-RUN pip install --no-cache-dir \
-    --extra-index-url https://download.pytorch.org/whl/cpu \
-    -r requirements.txt \
-    --prefix=/install
+COPY requirements.render.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt --prefix=/install
 
-# Stage 2 — minimal runtime image with pre-baked HuggingFace models
+# Stage 2 — minimal runtime with pre-baked ONNX embedding model
 FROM python:3.11-slim AS runtime
 
 RUN apt-get update \
@@ -20,14 +20,13 @@ COPY --from=builder /install /usr/local
 WORKDIR /app
 COPY . .
 
-# Pre-bake only the embedding model. Reranker and grounding are disabled on
-# the free tier (RERANK_ENABLED=false, GROUNDING_ENABLED=false) to stay
-# within the 512 MB RAM limit.
-ENV HF_HOME=/app/.cache/huggingface
+# Download the ONNX model at build time so the container starts offline.
+# BAAI/bge-small-en-v1.5 is 384-dim, ~60 MB on disk.
+ENV FASTEMBED_CACHE_DIR=/app/.cache/fastembed
 RUN python -c "\
-from sentence_transformers import SentenceTransformer; \
-SentenceTransformer('all-MiniLM-L6-v2'); \
-print('embedding model cached')"
+from fastembed import TextEmbedding; \
+list(TextEmbedding(model_name='BAAI/bge-small-en-v1.5', cache_dir='/app/.cache/fastembed').embed(['warmup'])); \
+print('fastembed model cached')"
 
 RUN useradd --create-home appuser && chown -R appuser /app
 USER appuser

@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
 
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
+    FASTEMBED_CACHE_DIR: str = ""  # set to pre-baked path when using fastembed backend
     GROQ_REASONING_MODEL: str = "llama-3.3-70b-versatile"
     GROQ_EXTRACTION_MODEL: str = "llama-3.1-8b-instant"
     ANTHROPIC_FALLBACK_MODEL: str = "claude-3-5-haiku-20241022"
