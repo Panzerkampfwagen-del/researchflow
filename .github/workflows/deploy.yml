@@ -1,8 +1,7 @@
 name: Deploy
 
-# Runs only after CI passes on main. Triggers a Render deploy via deploy
-# hook so production only updates when tests and lint are green.
-# Vercel redeploys automatically via its GitHub integration on every push.
+# Runs only after CI passes on main. Triggers Render and Vercel deploys
+# via their respective CLI/hooks so production only updates when green.
 on:
   workflow_run:
     workflows: ["CI"]
@@ -35,3 +34,19 @@ jobs:
           done
           echo "Backend did not become healthy within 3 minutes."
           exit 1
+
+  deploy-frontend:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Deploy to Vercel
+        working-directory: frontend
+        run: vercel --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
