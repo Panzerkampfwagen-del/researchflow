@@ -21,12 +21,17 @@ services:
       - ./backend/.env
     environment:
       DATABASE_URL: postgresql+asyncpg://researchflow:password@db:5432/researchflow
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      HF_HOME: /hf_cache
+    volumes:
+      - hf_cache:/hf_cache
     depends_on:
       db:
         condition: service_healthy
     ports:
       - "8000:8000"
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
 
   frontend:
     build: ./frontend
@@ -37,3 +42,9 @@ services:
 
 volumes:
   pgdata:
+  hf_cache:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/aryan/.cache/huggingface

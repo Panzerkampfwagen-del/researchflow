@@ -10,6 +10,7 @@ entry points used by the agents.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from dataclasses import dataclass
@@ -18,7 +19,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 import anthropic
 import json_repair
 import structlog
-from groq import AsyncGroq
+from groq import AsyncGroq, RateLimitError as GroqRateLimitError
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import settings
@@ -85,15 +86,24 @@ class LLMClient:
     async def _complete_groq(
         self, messages: list[dict[str, str]], model: str, temperature: float
     ) -> LLMResponse:
-        """Call the Groq chat completions API and wrap the result."""
-        resp = await self._groq.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-        )
-        content = resp.choices[0].message.content or ""
-        tokens = resp.usage.total_tokens if resp.usage else 0
-        return LLMResponse(content=content, tokens=tokens, cost_usd=0.0, model=model)
+        """Call the Groq chat completions API, retrying on 429 with backoff."""
+        delay = 5.0
+        for attempt in range(5):
+            try:
+                resp = await self._groq.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                )
+                content = resp.choices[0].message.content or ""
+                tokens = resp.usage.total_tokens if resp.usage else 0
+                return LLMResponse(content=content, tokens=tokens, cost_usd=0.0, model=model)
+            except GroqRateLimitError:
+                if attempt == 4:
+                    raise
+                logger.warning("groq_rate_limited", attempt=attempt, retry_in=delay)
+                await asyncio.sleep(delay)
+                delay *= 2
 
     async def _complete_anthropic(
         self, messages: list[dict[str, str]], temperature: float

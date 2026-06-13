@@ -1,5 +1,6 @@
 # Python
 backend/.env
+backend/vendor/
 backend/__pycache__/
 backend/.venv/
 backend/*.egg-info/

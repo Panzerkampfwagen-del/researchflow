@@ -310,8 +310,12 @@ async def run_discovery(
     # follow_redirects: arXiv now 301-redirects the bare http endpoint to https
     # (HSTS); without this httpx returns the empty 301 body and discovery finds
     # nothing. Harmless for the already-https endpoints.
+    s2_headers: dict[str, str] = {}
+    if settings.SEMANTIC_SCHOLAR_API_KEY:
+        s2_headers["x-api-key"] = settings.SEMANTIC_SCHOLAR_API_KEY
+
     async with httpx.AsyncClient(
-        headers={"User-Agent": "ResearchFlow/1.0"}, follow_redirects=True
+        headers={"User-Agent": "ResearchFlow/1.0", **s2_headers}, follow_redirects=True
     ) as client:
         arxiv_papers, ss_papers = await asyncio.gather(
             _search_source(search_arxiv, settings.ARXIV_RATE_LIMIT_SECONDS),

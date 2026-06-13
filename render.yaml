@@ -1,0 +1,52 @@
+services:
+  - type: web
+    name: researchflow-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile.render
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      # Injected automatically from the Render-managed database below
+      - key: DATABASE_URL
+        fromDatabase:
+          name: researchflow-db
+          property: connectionString
+
+      # Set these in the Render dashboard (Environment → Secret Files / Env Vars)
+      - key: GROQ_API_KEY
+        sync: false
+      - key: SEMANTIC_SCHOLAR_API_KEY
+        sync: false
+
+      # Leave Anthropic empty unless you have a key
+      - key: ANTHROPIC_API_KEY
+        value: ""
+
+      # Model names
+      - key: GROQ_REASONING_MODEL
+        value: llama-3.3-70b-versatile
+      - key: GROQ_EXTRACTION_MODEL
+        value: llama-3.1-8b-instant
+      - key: EMBEDDING_MODEL
+        value: all-MiniLM-L6-v2
+      - key: RERANK_MODEL
+        value: cross-encoder/ms-marco-MiniLM-L-6-v2
+      - key: RERANK_ENABLED
+        value: "true"
+
+      # NLI grounding model is ~480 MB; disable on free tier to stay within RAM
+      - key: GROUNDING_ENABLED
+        value: "false"
+
+      # Models are pre-baked into the Docker image — no HF network access needed
+      - key: HF_HOME
+        value: /app/.cache/huggingface
+      - key: HF_HUB_OFFLINE
+        value: "1"
+      - key: TRANSFORMERS_OFFLINE
+        value: "1"
+
+databases:
+  - name: researchflow-db
+    databaseName: researchflow
+    plan: free

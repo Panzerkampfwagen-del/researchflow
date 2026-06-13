@@ -7,9 +7,9 @@ explicit and independently testable.
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ResearchPlan(BaseModel):
@@ -57,6 +57,13 @@ class PaperAnalysis(BaseModel):
     key_results: str = ""
     limitations: str = ""
     confidence: float = 0.0
+
+    @field_validator("datasets", "metrics", mode="before")
+    @classmethod
+    def coerce_str_to_list(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            return [v] if v else []
+        return v
 
 
 class ResearchGap(BaseModel):

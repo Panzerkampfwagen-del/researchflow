@@ -4,6 +4,7 @@ Exposes a single ``settings`` singleton. Every other module reads configuration
 through this object rather than touching ``os.environ`` directly.
 """
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +22,14 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://researchflow:password@localhost:5432/researchflow"
     )
 
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def _fix_asyncpg_scheme(cls, v: str) -> str:
+        # Render supplies postgresql://, asyncpg requires postgresql+asyncpg://
+        if isinstance(v, str) and v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
+
     GROQ_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
 
@@ -36,6 +45,8 @@ class Settings(BaseSettings):
     EMBEDDING_DIM: int = 384
     LOAD_EMBEDDINGS_ON_STARTUP: bool = True
     DB_USE_NULLPOOL: bool = False
+
+    SEMANTIC_SCHOLAR_API_KEY: str = ""
 
     RERANK_ENABLED: bool = True
     RERANK_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"

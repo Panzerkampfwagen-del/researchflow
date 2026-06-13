@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from app.core import events
 from app.core.llm import LLMResponse, llm_client
 from app.graph.state import PaperAnalysis, PaperMetadata
 
 MIN_ABSTRACT_CHARS = 100
+# Groq free tier: 6000 TPM for llama-3.1-8b-instant. Each paper uses ~900 tokens,
+# so 12 s between calls keeps us at ~4500 TPM, safely under the limit.
+MAX_PAPERS_TO_ANALYZE = 15
+_INTER_CALL_SLEEP = 12.0
 
 ANALYSIS_SYSTEM = (
     "You are a meticulous research analyst. Extract the following from the given paper "
@@ -45,6 +51,7 @@ async def run_analysis(
     ``paper_analyzed`` event per paper and returns the analyses plus aggregate
     usage.
     """
+    papers = papers[:MAX_PAPERS_TO_ANALYZE]
     analyses: list[PaperAnalysis] = []
     total = len(papers)
     total_tokens = 0
@@ -72,6 +79,9 @@ async def run_analysis(
             total_cost += usage.cost_usd
             last_model = usage.model
             analyses.append(analysis)
+            # Throttle to stay within Groq free-tier TPM limit
+            if index < total:
+                await asyncio.sleep(_INTER_CALL_SLEEP)
 
         await events.paper_analyzed(session_id, paper.title, index, total)
 

@@ -1,17 +1,15 @@
 import { useState } from 'react'
 import AgentTimeline from './components/AgentTimeline'
-import EvalMetrics from './components/EvalMetrics'
 import KnowledgeGraphViz from './components/KnowledgeGraphViz'
 import QueryInput from './components/QueryInput'
 import ReportViewer from './components/ReportViewer'
 import { useResearchStream } from './hooks/useResearchStream'
 
-type Tab = 'report' | 'graph' | 'evals'
+type Tab = 'report' | 'graph'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'report', label: 'Report' },
   { key: 'graph', label: 'Knowledge Graph' },
-  { key: 'evals', label: 'Evaluation Metrics' },
 ]
 
 const STAGES = [
@@ -163,7 +161,6 @@ export default function App() {
                 <div className="rounded-xl border border-navy-border bg-navy-light p-5">
                   {tab === 'report' && <ReportViewer sessionId={sessionId} done={done} />}
                   {tab === 'graph' && <KnowledgeGraphViz sessionId={sessionId} done={done} />}
-                  {tab === 'evals' && <EvalMetrics sessionId={sessionId} done={done} />}
                 </div>
               </div>
             </div>
