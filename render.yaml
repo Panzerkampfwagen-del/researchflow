@@ -29,12 +29,11 @@ services:
         value: llama-3.1-8b-instant
       - key: EMBEDDING_MODEL
         value: all-MiniLM-L6-v2
-      - key: RERANK_MODEL
-        value: cross-encoder/ms-marco-MiniLM-L-6-v2
+      # Cross-encoder reranker (~80 MB) + NLI grounding (~480 MB) both disabled
+      # on the free tier to keep peak RAM under 512 MB. Discovery still uses
+      # hybrid BM25 + dense scoring, so result quality remains good.
       - key: RERANK_ENABLED
-        value: "true"
-
-      # NLI grounding model is ~480 MB; disable on free tier to stay within RAM
+        value: "false"
       - key: GROUNDING_ENABLED
         value: "false"
 
