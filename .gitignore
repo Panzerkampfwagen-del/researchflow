@@ -10,7 +10,8 @@ backend/.pytest_cache/
 frontend/node_modules/
 frontend/.env
 frontend/dist/
-frontend/.vercel/
+frontend/.vercel/*
+!frontend/.vercel/project.json
 
 # General
 .DS_Store
