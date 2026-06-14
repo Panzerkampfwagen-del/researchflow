@@ -60,23 +60,31 @@ def _unavailable(paper_id: str) -> PaperAnalysis:
 
 
 async def _extract_one(
-    messages: list[dict[str, str]],
-) -> tuple[PaperAnalysis | None, LLMResponse | None]:
+    messages: list[dict[str, str]], use_fast: bool
+) -> tuple[PaperAnalysis | None, LLMResponse | None, bool]:
     """Extract one paper's analysis, falling back fast model → reasoning model.
 
     The fast extraction model (Groq llama-3.1-8b) can exhaust its free-tier daily
-    quota independently of the reasoning model, so on failure we retry once with
-    the reasoning model (separate quota) before giving up. Returns ``(None, None)``
-    if both fail, so the caller can substitute a placeholder instead of aborting.
+    quota independently of the reasoning model, so on failure we retry with the
+    reasoning model (separate quota) before giving up. Returns
+    ``(analysis, usage, fast_failed)`` — ``fast_failed`` lets the caller stop
+    re-trying a model that is already exhausted for the rest of the run, and
+    ``(None, None, ...)`` means both models failed (caller substitutes a
+    placeholder rather than aborting).
     """
-    for use_reasoning in (False, True):
+    attempts = (False, True) if use_fast else (True,)
+    fast_failed = False
+    for use_reasoning in attempts:
         try:
-            return await llm_client.structured_complete(
+            analysis, usage = await llm_client.structured_complete(
                 messages, PaperAnalysis, use_reasoning=use_reasoning
             )
+            return analysis, usage, fast_failed
         except Exception as exc:  # noqa: BLE001 - try the next model, then degrade
+            if not use_reasoning:
+                fast_failed = True
             logger.warning("analysis_attempt_failed", use_reasoning=use_reasoning, error=str(exc))
-    return None, None
+    return None, None, fast_failed
 
 
 async def run_analysis(
@@ -95,6 +103,9 @@ async def run_analysis(
     total_tokens = 0
     total_cost = 0.0
     last_model = ""
+    # Once the fast model fails (e.g. daily quota), stop retrying it every paper —
+    # that retry storm can make a run long enough to outlast the free-tier worker.
+    use_fast = True
 
     for index, paper in enumerate(papers, start=1):
         paper_id = paper.paper_id or ""
@@ -109,7 +120,9 @@ async def run_analysis(
                     "content": f"Title: {paper.title}\n\nAbstract: {abstract}",
                 },
             ]
-            analysis, usage = await _extract_one(messages)
+            analysis, usage, fast_failed = await _extract_one(messages, use_fast)
+            if fast_failed:
+                use_fast = False  # skip the exhausted fast model for the rest
             if analysis is None or usage is None:
                 # Both models failed (e.g. provider outage / quota) — record a
                 # placeholder and keep going so the report still generates from

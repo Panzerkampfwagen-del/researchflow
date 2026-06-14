@@ -43,6 +43,9 @@ T = TypeVar("T", bound=BaseModel)
 
 ANTHROPIC_INPUT_COST_PER_1K = 0.00025
 ANTHROPIC_OUTPUT_COST_PER_1K = 0.00125
+# Few, short Groq retries: a free-tier daily-quota 429 won't clear mid-request,
+# so a long backoff only stalls the run. Fail fast and let the caller fall back.
+_GROQ_MAX_ATTEMPTS = 2
 _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.IGNORECASE)
 
 
@@ -96,9 +99,15 @@ class LLMClient:
     async def _complete_groq(
         self, messages: list[dict[str, str]], model: str, temperature: float
     ) -> LLMResponse:
-        """Call the Groq chat completions API, retrying on 429 with backoff."""
-        delay = 5.0
-        for attempt in range(5):
+        """Call the Groq chat completions API, retrying on 429 with backoff.
+
+        Retries are deliberately few and short: a 429 from the free tier's *daily*
+        quota will not clear within a request, so a long backoff just stalls the
+        run (and, across many papers, can outlast the worker). Fail fast so the
+        caller can fall back to another model.
+        """
+        delay = 3.0
+        for attempt in range(_GROQ_MAX_ATTEMPTS):
             try:
                 resp = await self._groq.chat.completions.create(
                     model=model,
@@ -109,9 +118,9 @@ class LLMClient:
                 tokens = resp.usage.total_tokens if resp.usage else 0
                 return LLMResponse(content=content, tokens=tokens, cost_usd=0.0, model=model)
             except GroqRateLimitError:
-                if attempt == 4:
+                if attempt == _GROQ_MAX_ATTEMPTS - 1:
                     raise
-                logger.warning("groq_rate_limited", attempt=attempt, retry_in=delay)
+                logger.warning("groq_rate_limited", model=model, attempt=attempt, retry_in=delay)
                 await asyncio.sleep(delay)
                 delay *= 2
 
