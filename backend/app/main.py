@@ -23,7 +23,7 @@ from app.core.config import settings
 from app.core.llm import embedding_client
 from app.db.database import Base, engine
 
-VERSION = "1.3.0-sweep"
+VERSION = "1.4.0"
 
 
 def _configure_logging() -> None:
@@ -44,13 +44,15 @@ logger = structlog.get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load the embedding model once at startup; tear down on shutdown."""
+    """Initialize the DB + embedding backend at startup; tear down on shutdown."""
     _configure_logging()
     from sqlalchemy import text
 
     from app.db import models  # noqa: F401 - register models on Base.metadata
     from app.db.database import async_session_factory
     from app.db.repositories.sessions import SessionRepository
+
+    app.state.db_ready = False
     try:
         async with engine.begin() as conn:
             await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
@@ -60,19 +62,25 @@ async def lifespan(app: FastAPI):
         async with async_session_factory() as db:
             swept = await SessionRepository(db).fail_stale()
             await db.commit()
+        app.state.db_ready = True
         logger.info("database_ready", stale_sessions_failed=swept)
     except Exception as exc:  # noqa: BLE001
         logger.error("database_init_failed", error=str(exc))
     if settings.LOAD_EMBEDDINGS_ON_STARTUP:
         try:
             await asyncio.to_thread(embedding_client.load)
-            logger.info("embedding_model_ready", model=settings.EMBEDDING_MODEL)
+            logger.info("embedding_model_ready", backend=embedding_client.backend)
         except Exception as exc:  # noqa: BLE001 - startup must not hard-crash
             logger.error("embedding_model_load_failed", error=str(exc))
     yield
+    await embedding_client.aclose()
 
 
 app = FastAPI(title="ResearchFlow", version=VERSION, lifespan=lifespan)
+# Default to ready; the lifespan flips this to False during init and back to True
+# only on success. Contexts that don't run the lifespan (e.g. the ASGI test
+# client) inherit this default rather than reporting a false "degraded".
+app.state.db_ready = True
 
 app.add_middleware(
     CORSMiddleware,
@@ -115,11 +123,26 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 
 @app.get("/api/health")
-async def health() -> dict:
-    """Liveness probe used by the deploy pipeline."""
+async def health(response: Response) -> dict:
+    """Readiness probe used by the deploy pipeline.
+
+    Returns 503 when a dependency the app needs to serve requests is not ready —
+    DB init failed, or the embedding backend was expected at startup but did not
+    load — so the deploy pipeline detects a broken container instead of routing
+    traffic to one that 500s on every request.
+    """
+    db_ok = bool(getattr(app.state, "db_ready", False))
+    # Only require the embedding backend when it is meant to load eagerly; lazy
+    # configs resolve it on first use.
+    embedding_ok = embedding_client.ready or not settings.LOAD_EMBEDDINGS_ON_STARTUP
+    ready = db_ok and embedding_ok
+    if not ready:
+        response.status_code = 503
     return {
-        "status": "ok",
+        "status": "ok" if ready else "degraded",
         "version": VERSION,
+        "ready": ready,
+        "db": db_ok,
         "embedding_backend": embedding_client.backend or "not_loaded",
     }
 
