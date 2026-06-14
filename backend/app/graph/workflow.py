@@ -236,8 +236,13 @@ async def run_workflow(
     if state.get("report") is not None:
         await events.done(session_id, len(state.get("papers", [])))
     else:
+        errors = state.get("errors", [])
+        detail = "; ".join(errors) or "Workflow produced no report"
         async with async_session_factory() as db:
             await SessionRepository(db).set_status(sid, "failed", completed=True)
+            # Persist the failure detail as a telemetry row so it is visible via
+            # the API (the SSE failed event is ephemeral).
+            wf_run = await AgentRunRepository(db).start(sid, "workflow")
+            await AgentRunRepository(db).fail(wf_run, detail)
             await db.commit()
-        errors = state.get("errors", [])
-        await events.failed(session_id, "; ".join(errors) or "Workflow produced no report")
+        await events.failed(session_id, detail)
