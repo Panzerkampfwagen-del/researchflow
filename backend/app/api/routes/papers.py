@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas import PaperResult
-from app.core.llm import embedding_client
+from app.core.llm import EMBED_TASK_QUERY, embedding_client
 from app.db.database import get_db
 from app.db.repositories.papers import PaperRepository
 
@@ -20,7 +20,7 @@ async def search_papers(
     db: AsyncSession = Depends(get_db),
 ) -> list[PaperResult]:
     """Semantic search over stored paper embeddings via pgvector cosine distance."""
-    query_vec = (await embedding_client.aembed([q]))[0].tolist()
+    query_vec = (await embedding_client.aembed([q], task=EMBED_TASK_QUERY))[0].tolist()
     papers = await PaperRepository(db).semantic_search(query_vec, limit)
     return [
         PaperResult(

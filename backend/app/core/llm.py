@@ -14,11 +14,12 @@ import asyncio
 import json
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
 import anthropic
 import httpx
 import json_repair
+import numpy as np
 import structlog
 from groq import AsyncGroq
 from groq import RateLimitError as GroqRateLimitError
@@ -26,10 +27,17 @@ from pydantic import BaseModel, ValidationError
 
 from app.core.config import settings
 
-if TYPE_CHECKING:
-    import numpy as np
-
 logger = structlog.get_logger(__name__)
+
+# Jina embeddings tuning. Batch so a large candidate set never exceeds the API's
+# per-request token/item limit; retry transient failures (the local backends
+# never hit the network, so this failure class is new to the hosted path).
+_JINA_BATCH_SIZE = 64
+_JINA_MAX_RETRIES = 4
+_JINA_RETRY_STATUS = {429, 500, 502, 503, 504}
+# Task labels for the asymmetric jina-embeddings-v3 model.
+EMBED_TASK_PASSAGE = "retrieval.passage"
+EMBED_TASK_QUERY = "retrieval.query"
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -253,18 +261,26 @@ class EmbeddingClient:
     def __init__(self) -> None:
         self._model: Any | None = None
         self._backend: str = ""
+        self._http: httpx.AsyncClient | None = None
 
     @property
     def backend(self) -> str:
-        """Name of the loaded backend ("fastembed"/"sentence-transformers"), or ""."""
+        """Name of the loaded backend (jina/sentence-transformers/fastembed), or ""."""
         return self._backend
 
+    @property
+    def ready(self) -> bool:
+        """True once a usable embedding backend has been resolved."""
+        return bool(self._backend)
+
     def load(self) -> None:
-        """Load the embedding backend once. Safe to call repeatedly.
+        """Resolve the embedding backend once. Safe to call repeatedly.
 
         When ``JINA_API_KEY`` is set, embeddings are served by the hosted Jina
         API and no local model is loaded — this keeps the container within the
-        512 MB Render free tier. Otherwise a local model is used.
+        512 MB Render free tier. Otherwise a local model is used. Raises
+        ``RuntimeError`` if no backend can be configured, so the failure is loud
+        instead of surfacing later as an opaque error mid-request.
         """
         if self._backend:
             return
@@ -282,59 +298,95 @@ class EmbeddingClient:
             )
             self._model = SentenceTransformer(settings.EMBEDDING_MODEL)
             self._backend = "sentence-transformers"
+            return
         except ImportError:
+            pass
+        try:
             from fastembed import TextEmbedding
+        except ImportError as exc:
+            raise RuntimeError(
+                "No embedding backend available: set JINA_API_KEY, or install "
+                "sentence-transformers or fastembed."
+            ) from exc
+        cache_dir = settings.FASTEMBED_CACHE_DIR or None
+        logger.info(
+            "loading_embedding_model", model=settings.EMBEDDING_MODEL, backend="fastembed"
+        )
+        # threads=1 keeps onnxruntime to a single memory arena — critical on the
+        # 512 MB free tier where the default (one arena per core) blows the limit.
+        self._model = TextEmbedding(
+            model_name=settings.EMBEDDING_MODEL, cache_dir=cache_dir, threads=1
+        )
+        self._backend = "fastembed"
 
-            cache_dir = settings.FASTEMBED_CACHE_DIR or None
-            logger.info(
-                "loading_embedding_model", model=settings.EMBEDDING_MODEL, backend="fastembed"
-            )
-            # threads=1 keeps onnxruntime to a single memory arena — critical on
-            # the 512 MB Render free tier where the default (one arena per core)
-            # blows the memory limit.
-            self._model = TextEmbedding(
-                model_name=settings.EMBEDDING_MODEL, cache_dir=cache_dir, threads=1
-            )
-            self._backend = "fastembed"
+    async def aclose(self) -> None:
+        """Close the shared HTTP client (called on app shutdown)."""
+        if self._http is not None:
+            await self._http.aclose()
+            self._http = None
 
-    def _jina_payload(self, texts: list[str]) -> dict:
+    def _jina_payload(self, texts: list[str], task: str) -> dict:
         """Build the Jina embeddings request body (Matryoshka-truncated to dim)."""
         return {
             "model": settings.JINA_MODEL,
-            "task": "retrieval.passage",
+            "task": task,
             "dimensions": settings.EMBEDDING_DIM,
-            # Abstracts are short; guard against the occasional oversized input.
+            # Guard against the occasional oversized input (Jina caps per-item tokens).
             "input": [t[:8000] for t in texts],
         }
 
     @staticmethod
     def _jina_vectors(payload: dict) -> np.ndarray:
         """Extract an index-ordered ``(n, dim)`` array from a Jina API response."""
-        import numpy as np
-
-        rows = sorted(payload["data"], key=lambda d: d["index"])
+        data = payload.get("data")
+        if not isinstance(data, list):
+            raise RuntimeError(f"Unexpected Jina response shape: {str(payload)[:200]}")
+        rows = sorted(data, key=lambda d: d["index"])
         return np.array([row["embedding"] for row in rows], dtype="float32")
 
-    def embed(self, texts: list[str]) -> np.ndarray:
-        """Embed a list of texts into a ``(len(texts), dim)`` float array.
-
-        For local backends this is CPU-bound; call via ``aembed`` from async code
-        so the event loop is not blocked. The Jina backend issues a blocking HTTP
-        call here and is best driven through ``aembed``.
-        """
-        import numpy as np
-
-        self.load()
-        if self._backend == "jina":
-            headers = {"Authorization": f"Bearer {settings.JINA_API_KEY}"}
-            resp = httpx.post(
-                settings.JINA_API_URL,
-                json=self._jina_payload(texts),
-                headers=headers,
-                timeout=60.0,
+    async def _jina_request(self, texts: list[str], task: str) -> np.ndarray:
+        """POST one batch to Jina with retries on transient failures."""
+        if self._http is None:
+            self._http = httpx.AsyncClient(
+                timeout=60.0, headers={"Authorization": f"Bearer {settings.JINA_API_KEY}"}
             )
-            resp.raise_for_status()
-            return self._jina_vectors(resp.json())
+        delay = 1.0
+        for attempt in range(_JINA_MAX_RETRIES):
+            try:
+                resp = await self._http.post(
+                    settings.JINA_API_URL, json=self._jina_payload(texts, task)
+                )
+                resp.raise_for_status()
+                return self._jina_vectors(resp.json())
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                if status not in _JINA_RETRY_STATUS or attempt == _JINA_MAX_RETRIES - 1:
+                    raise
+                logger.warning("jina_retrying", status=status, attempt=attempt, retry_in=delay)
+            except httpx.TransportError as exc:
+                if attempt == _JINA_MAX_RETRIES - 1:
+                    raise
+                logger.warning("jina_retrying", error=str(exc), attempt=attempt, retry_in=delay)
+            await asyncio.sleep(delay)
+            delay *= 2
+        raise RuntimeError("unreachable")  # pragma: no cover
+
+    async def _aembed_jina(self, texts: list[str], task: str) -> np.ndarray:
+        """Embed via Jina, chunked into batches to bound per-request size."""
+        chunks = [
+            texts[i : i + _JINA_BATCH_SIZE] for i in range(0, len(texts), _JINA_BATCH_SIZE)
+        ]
+        parts = [await self._jina_request(chunk, task) for chunk in chunks]
+        return np.vstack(parts) if parts else np.empty((0, settings.EMBEDDING_DIM), dtype="float32")
+
+    def embed(self, texts: list[str]) -> np.ndarray:
+        """Embed texts with a local CPU-bound backend into a ``(n, dim)`` array.
+
+        Jina is served exclusively through :meth:`aembed`; this path covers the
+        sentence-transformers and fastembed backends and is run in a worker
+        thread by ``aembed`` so the event loop is not blocked.
+        """
+        self.load()
         if self._backend == "fastembed":
             # parallel=1 forces a single process — the default forks one worker
             # per core for large batches, each copying the ~180 MB ONNX model and
@@ -348,23 +400,16 @@ class EmbeddingClient:
             show_progress_bar=False,
         )
 
-    async def aembed(self, texts: list[str]) -> np.ndarray:
-        """Embed texts asynchronously.
+    async def aembed(self, texts: list[str], task: str = EMBED_TASK_PASSAGE) -> np.ndarray:
+        """Embed texts asynchronously into a ``(n, dim)`` array.
 
-        Uses a non-blocking HTTP call for the Jina backend; runs local CPU-bound
-        models in a worker thread.
+        ``task`` selects the jina-embeddings-v3 adapter (passage vs query); it is
+        ignored by the local backends, which are symmetric. Use
+        ``EMBED_TASK_QUERY`` when embedding a search query.
         """
-        import asyncio
-
         self.load()
         if self._backend == "jina":
-            headers = {"Authorization": f"Bearer {settings.JINA_API_KEY}"}
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                resp = await client.post(
-                    settings.JINA_API_URL, json=self._jina_payload(texts), headers=headers
-                )
-            resp.raise_for_status()
-            return self._jina_vectors(resp.json())
+            return await self._aembed_jina(texts, task)
         return await asyncio.to_thread(self.embed, texts)
 
 

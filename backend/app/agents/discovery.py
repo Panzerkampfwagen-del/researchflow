@@ -20,7 +20,7 @@ from rank_bm25 import BM25Okapi
 from app.agents.reranker import CITATION_WEIGHT, RERANK_WEIGHT, reranker
 from app.core import events
 from app.core.config import settings
-from app.core.llm import embedding_client
+from app.core.llm import EMBED_TASK_QUERY, embedding_client
 from app.graph.state import PaperMetadata, ResearchPlan
 from app.retrieval.fusion import ranking_from_scores, reciprocal_rank_fusion
 
@@ -329,11 +329,11 @@ async def run_discovery(
     if not papers:
         return [], []
 
-    # One embedding pass for abstracts + the query (the query is the last row).
+    # Embed abstracts as passages and the query with the query adapter — the
+    # jina-embeddings-v3 model is asymmetric, so mixing the two degrades ranking.
     abstracts = [p.abstract or p.title for p in papers]
-    all_vecs = await embedding_client.aembed([*abstracts, query])
-    abstract_vecs = all_vecs[:-1]
-    query_vec = all_vecs[-1]
+    abstract_vecs = await embedding_client.aembed(abstracts)
+    query_vec = (await embedding_client.aembed([query], task=EMBED_TASK_QUERY))[0]
     lexical = bm25_scores(papers, query)
     score_papers(papers, abstract_vecs, query_vec, lexical)
     apply_fusion(papers)
