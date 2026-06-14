@@ -23,7 +23,7 @@ from app.core.config import settings
 from app.core.llm import embedding_client
 from app.db.database import Base, engine
 
-VERSION = "1.2.0-jina"
+VERSION = "1.3.0-sweep"
 
 
 def _configure_logging() -> None:
@@ -48,11 +48,18 @@ async def lifespan(app: FastAPI):
     _configure_logging()
     from sqlalchemy import text
     from app.db import models  # noqa: F401 - register models on Base.metadata
+    from app.db.database import async_session_factory
+    from app.db.repositories.sessions import SessionRepository
     try:
         async with engine.begin() as conn:
             await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
             await conn.run_sync(Base.metadata.create_all)
-        logger.info("database_ready")
+        # Any session still "running"/"pending" at boot is orphaned (its in-memory
+        # task died with the previous process) — sweep it so the UI doesn't hang.
+        async with async_session_factory() as db:
+            swept = await SessionRepository(db).fail_stale()
+            await db.commit()
+        logger.info("database_ready", stale_sessions_failed=swept)
     except Exception as exc:  # noqa: BLE001
         logger.error("database_init_failed", error=str(exc))
     if settings.LOAD_EMBEDDINGS_ON_STARTUP:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import AgentRun, ResearchSession
@@ -44,6 +44,28 @@ class SessionRepository:
             row.status = status
             if completed:
                 row.completed_at = datetime.now(UTC)
+
+    async def fail_stale(self) -> int:
+        """Mark every unfinished session as failed; return how many were swept.
+
+        The pipeline runs as an in-memory task, so a session left in ``pending``
+        or ``running`` when the process boots is orphaned — its driving task died
+        with the previous process and can never resume. Sweeping them on startup
+        keeps the UI from hanging on a session that will never progress. Their
+        still-``running`` agent runs are closed out too.
+        """
+        now = datetime.now(UTC)
+        result = await self.session.execute(
+            update(ResearchSession)
+            .where(ResearchSession.status.in_(("pending", "running")))
+            .values(status="failed", completed_at=now)
+        )
+        await self.session.execute(
+            update(AgentRun)
+            .where(AgentRun.status == "running")
+            .values(status="failed", error_message="interrupted by restart", completed_at=now)
+        )
+        return result.rowcount or 0
 
 
 class AgentRunRepository:
