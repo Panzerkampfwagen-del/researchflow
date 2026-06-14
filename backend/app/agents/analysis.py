@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import asyncio
 
+import structlog
+
 from app.core import events
 from app.core.llm import LLMResponse, llm_client
 from app.graph.state import PaperAnalysis, PaperMetadata
+
+logger = structlog.get_logger(__name__)
 
 MIN_ABSTRACT_CHARS = 100
 # Groq free tier: 6000 TPM for llama-3.1-8b-instant. Each paper uses ~900 tokens,
@@ -41,6 +45,20 @@ def _insufficient(paper_id: str) -> PaperAnalysis:
     )
 
 
+def _unavailable(paper_id: str) -> PaperAnalysis:
+    """Return a placeholder when the LLM extraction failed (provider error)."""
+    return PaperAnalysis(
+        paper_id=paper_id,
+        problem="Analysis unavailable",
+        methodology="Analysis unavailable",
+        datasets=[],
+        metrics=[],
+        key_results="Analysis unavailable",
+        limitations="Analysis unavailable",
+        confidence=0.0,
+    )
+
+
 async def run_analysis(
     papers: list[PaperMetadata], session_id: str
 ) -> tuple[list[PaperAnalysis], LLMResponse]:
@@ -71,14 +89,22 @@ async def run_analysis(
                     "content": f"Title: {paper.title}\n\nAbstract: {abstract}",
                 },
             ]
-            analysis, usage = await llm_client.structured_complete(
-                messages, PaperAnalysis, use_reasoning=False
-            )
-            analysis.paper_id = paper_id
-            total_tokens += usage.tokens
-            total_cost += usage.cost_usd
-            last_model = usage.model
-            analyses.append(analysis)
+            try:
+                analysis, usage = await llm_client.structured_complete(
+                    messages, PaperAnalysis, use_reasoning=False
+                )
+            except Exception as exc:  # noqa: BLE001 - degrade, don't kill the run
+                # A provider error (rate limit, quota, outage) on one paper must
+                # not abort the whole pipeline — record a placeholder and keep
+                # going so the report still generates from the papers that worked.
+                logger.warning("analysis_paper_failed", title=paper.title, error=str(exc))
+                analyses.append(_unavailable(paper_id))
+            else:
+                analysis.paper_id = paper_id
+                total_tokens += usage.tokens
+                total_cost += usage.cost_usd
+                last_model = usage.model
+                analyses.append(analysis)
             # Throttle to stay within Groq free-tier TPM limit
             if index < total:
                 await asyncio.sleep(_INTER_CALL_SLEEP)
