@@ -22,13 +22,17 @@ class Base(DeclarativeBase):
 
 
 def _prepare_url(url: str) -> tuple[str, dict]:
-    """Strip sslmode from URL and return (clean_url, connect_args).
+    """Strip libpq-only query params from URL and return (clean_url, connect_args).
 
-    asyncpg rejects sslmode as a query param; SSL must be passed via connect_args.
+    asyncpg rejects libpq parameters like ``sslmode`` and ``channel_binding`` that
+    Neon/managed Postgres append to the DSN. SSL is instead passed via connect_args.
     """
     parsed = urlparse(url)
     params = parse_qs(parsed.query, keep_blank_values=True)
     ssl_mode = params.pop("sslmode", [None])[0]
+    # asyncpg understands none of these libpq DSN params; drop them.
+    for libpq_only in ("channel_binding", "options", "gssencmode", "target_session_attrs"):
+        params.pop(libpq_only, None)
     connect_args: dict = {}
     if ssl_mode in ("require", "verify-ca", "verify-full"):
         connect_args["ssl"] = True
