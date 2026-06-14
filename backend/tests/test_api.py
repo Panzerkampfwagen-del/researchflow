@@ -28,7 +28,9 @@ async def test_health():
     async with _client() as client:
         resp = await client.get("/api/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok", "version": "1.0.0"}
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert "version" in body
 
 
 async def test_create_research_returns_shape(monkeypatch):

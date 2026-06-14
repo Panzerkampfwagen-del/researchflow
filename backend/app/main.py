@@ -47,6 +47,7 @@ async def lifespan(app: FastAPI):
     """Load the embedding model once at startup; tear down on shutdown."""
     _configure_logging()
     from sqlalchemy import text
+
     from app.db import models  # noqa: F401 - register models on Base.metadata
     from app.db.database import async_session_factory
     from app.db.repositories.sessions import SessionRepository
