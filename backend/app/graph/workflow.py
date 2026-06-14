@@ -74,8 +74,17 @@ async def agent_stage(session_id: str, name: str):
         try:
             yield stage
         except Exception as exc:
-            await run_repo.fail(run, str(exc), _ms_since(start))
-            await db.commit()
+            # Record the failure on a FRESH session: the stage's own session may
+            # be poisoned (a DB error inside the stage aborts its transaction),
+            # which would otherwise swallow the error and leave no telemetry.
+            try:
+                await db.rollback()
+            except Exception:  # noqa: BLE001 - best-effort cleanup
+                pass
+            async with async_session_factory() as err_db:
+                err_run = await AgentRunRepository(err_db).start(sid, name)
+                await AgentRunRepository(err_db).fail(err_run, str(exc), _ms_since(start))
+                await err_db.commit()
             await events.agent_error(session_id, name, str(exc))
             logger.error("agent_failed", agent=name, session_id=session_id, error=str(exc))
             raise
