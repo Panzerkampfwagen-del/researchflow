@@ -59,6 +59,26 @@ def _unavailable(paper_id: str) -> PaperAnalysis:
     )
 
 
+async def _extract_one(
+    messages: list[dict[str, str]],
+) -> tuple[PaperAnalysis | None, LLMResponse | None]:
+    """Extract one paper's analysis, falling back fast model → reasoning model.
+
+    The fast extraction model (Groq llama-3.1-8b) can exhaust its free-tier daily
+    quota independently of the reasoning model, so on failure we retry once with
+    the reasoning model (separate quota) before giving up. Returns ``(None, None)``
+    if both fail, so the caller can substitute a placeholder instead of aborting.
+    """
+    for use_reasoning in (False, True):
+        try:
+            return await llm_client.structured_complete(
+                messages, PaperAnalysis, use_reasoning=use_reasoning
+            )
+        except Exception as exc:  # noqa: BLE001 - try the next model, then degrade
+            logger.warning("analysis_attempt_failed", use_reasoning=use_reasoning, error=str(exc))
+    return None, None
+
+
 async def run_analysis(
     papers: list[PaperMetadata], session_id: str
 ) -> tuple[list[PaperAnalysis], LLMResponse]:
@@ -89,15 +109,11 @@ async def run_analysis(
                     "content": f"Title: {paper.title}\n\nAbstract: {abstract}",
                 },
             ]
-            try:
-                analysis, usage = await llm_client.structured_complete(
-                    messages, PaperAnalysis, use_reasoning=False
-                )
-            except Exception as exc:  # noqa: BLE001 - degrade, don't kill the run
-                # A provider error (rate limit, quota, outage) on one paper must
-                # not abort the whole pipeline — record a placeholder and keep
-                # going so the report still generates from the papers that worked.
-                logger.warning("analysis_paper_failed", title=paper.title, error=str(exc))
+            analysis, usage = await _extract_one(messages)
+            if analysis is None or usage is None:
+                # Both models failed (e.g. provider outage / quota) — record a
+                # placeholder and keep going so the report still generates from
+                # the papers that succeeded instead of losing the whole run.
                 analyses.append(_unavailable(paper_id))
             else:
                 analysis.paper_id = paper_id

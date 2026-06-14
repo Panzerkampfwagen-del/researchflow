@@ -23,7 +23,7 @@ from app.core.config import settings
 from app.core.llm import embedding_client
 from app.db.database import Base, engine
 
-VERSION = "1.4.0"
+VERSION = "1.4.1"
 
 
 def _configure_logging() -> None:
