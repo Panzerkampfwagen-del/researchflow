@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -49,6 +50,16 @@ class Paper(Base):
     __table_args__ = (
         UniqueConstraint("arxiv_id", name="uq_papers_arxiv_id"),
         UniqueConstraint("semantic_scholar_id", name="uq_papers_semantic_scholar_id"),
+        # ivfflat cosine index for pgvector similarity search. Declared here (not
+        # only in the alembic migration) so prod's create_all builds it too —
+        # otherwise semantic search falls back to a sequential scan.
+        Index(
+            "ix_papers_embedding",
+            "embedding",
+            postgresql_using="ivfflat",
+            postgresql_with={"lists": 100},
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -76,6 +87,7 @@ class SessionPaper(Base):
     """Association of a paper to a session with its relevance ranking."""
 
     __tablename__ = "session_papers"
+    __table_args__ = (Index("ix_session_papers_session", "session_id"),)
 
     session_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -99,6 +111,7 @@ class PaperAnalysisRow(Base):
     __tablename__ = "paper_analyses"
     __table_args__ = (
         UniqueConstraint("session_id", "paper_id", name="uq_paper_analyses_session_paper"),
+        Index("ix_paper_analyses_session", "session_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -155,6 +168,7 @@ class AgentRun(Base):
     """Per-agent execution telemetry: tokens, latency, cost and errors."""
 
     __tablename__ = "agent_runs"
+    __table_args__ = (Index("ix_agent_runs_session", "session_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
