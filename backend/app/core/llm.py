@@ -253,6 +253,11 @@ class EmbeddingClient:
         self._model: Any | None = None
         self._backend: str = ""
 
+    @property
+    def backend(self) -> str:
+        """Name of the loaded backend ("fastembed"/"sentence-transformers"), or ""."""
+        return self._backend
+
     def load(self) -> None:
         """Load the embedding model once. Safe to call repeatedly."""
         if self._model is not None:

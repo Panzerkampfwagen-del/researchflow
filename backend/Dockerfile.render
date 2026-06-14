@@ -20,6 +20,14 @@ COPY --from=builder /install /usr/local
 WORKDIR /app
 COPY . .
 
+# Pin every numeric/ONNX threadpool to a single thread. onnxruntime, OpenMP and
+# OpenBLAS each spawn one worker (and one memory arena) per core by default,
+# which collectively blows the 512 MB limit. One thread keeps peak RAM bounded.
+ENV OMP_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    ONNXRUNTIME_INTRA_OP_NUM_THREADS=1
+
 # Download the ONNX model at build time so the container starts offline.
 # BAAI/bge-small-en-v1.5 is 384-dim, ~60 MB on disk.
 ENV FASTEMBED_CACHE_DIR=/app/.cache/fastembed

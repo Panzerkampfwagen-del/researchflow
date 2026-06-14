@@ -23,7 +23,7 @@ from app.core.config import settings
 from app.core.llm import embedding_client
 from app.db.database import Base, engine
 
-VERSION = "1.0.0"
+VERSION = "1.1.0-mem"
 
 
 def _configure_logging() -> None:
@@ -109,7 +109,11 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 @app.get("/api/health")
 async def health() -> dict:
     """Liveness probe used by the deploy pipeline."""
-    return {"status": "ok", "version": VERSION}
+    return {
+        "status": "ok",
+        "version": VERSION,
+        "embedding_backend": embedding_client.backend or "not_loaded",
+    }
 
 
 @app.get("/metrics")
