@@ -35,6 +35,13 @@ class Settings(BaseSettings):
 
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
     FASTEMBED_CACHE_DIR: str = ""  # set to pre-baked path when using fastembed backend
+
+    # Jina embeddings API — when JINA_API_KEY is set, embeddings are computed via
+    # the hosted API instead of a local model. This keeps the container small
+    # enough for the 512 MB Render free tier (no ONNX / PyTorch model resident).
+    JINA_API_KEY: str = ""
+    JINA_API_URL: str = "https://api.jina.ai/v1/embeddings"
+    JINA_MODEL: str = "jina-embeddings-v3"
     GROQ_REASONING_MODEL: str = "llama-3.3-70b-versatile"
     GROQ_EXTRACTION_MODEL: str = "llama-3.1-8b-instant"
     ANTHROPIC_FALLBACK_MODEL: str = "claude-3-5-haiku-20241022"

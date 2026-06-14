@@ -23,7 +23,7 @@ from app.core.config import settings
 from app.core.llm import embedding_client
 from app.db.database import Base, engine
 
-VERSION = "1.1.0-mem"
+VERSION = "1.2.0-jina"
 
 
 def _configure_logging() -> None:

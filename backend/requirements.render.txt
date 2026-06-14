@@ -1,5 +1,6 @@
-# Render production requirements — replaces torch + sentence-transformers with
-# fastembed (ONNX Runtime backend, ~60 MB RAM vs ~350 MB for the PyTorch stack).
+# Render production requirements — embeddings are served by the hosted Jina API
+# (set JINA_API_KEY), so NO local embedding model (PyTorch/ONNX) is installed.
+# This keeps the container ~140 MB, well within the 512 MB free tier.
 # Reranker and grounding are disabled via env vars in render.yaml, so their
 # lazy sentence-transformers imports are never reached.
 
@@ -15,8 +16,8 @@ greenlet==3.1.1
 alembic==1.14.0
 pgvector==0.3.6
 
-# Embeddings — ONNX, no PyTorch dependency
-fastembed==0.4.0
+# Embeddings — computed via the hosted Jina API (httpx below); numpy only for
+# assembling the returned vectors into arrays.
 numpy==1.26.4
 
 # LLM providers
