@@ -274,7 +274,12 @@ class EmbeddingClient:
             logger.info(
                 "loading_embedding_model", model=settings.EMBEDDING_MODEL, backend="fastembed"
             )
-            self._model = TextEmbedding(model_name=settings.EMBEDDING_MODEL, cache_dir=cache_dir)
+            # threads=1 keeps onnxruntime to a single memory arena — critical on
+            # the 512 MB Render free tier where the default (one arena per core)
+            # blows the memory limit.
+            self._model = TextEmbedding(
+                model_name=settings.EMBEDDING_MODEL, cache_dir=cache_dir, threads=1
+            )
             self._backend = "fastembed"
 
     def embed(self, texts: list[str]) -> np.ndarray:
@@ -287,7 +292,11 @@ class EmbeddingClient:
 
         self.load()
         if self._backend == "fastembed":
-            return np.array(list(self._model.embed(texts)))
+            # parallel=1 forces a single process — the default forks one worker
+            # per core for large batches, each copying the ~180 MB ONNX model and
+            # instantly OOM-ing the 512 MB tier. Small batch_size bounds the peak
+            # ONNX activation working set.
+            return np.array(list(self._model.embed(texts, batch_size=16, parallel=1)))
         return self._model.encode(
             texts,
             convert_to_numpy=True,
