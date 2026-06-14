@@ -173,6 +173,10 @@ async def get_evals(session_id: str, db: AsyncSession = Depends(get_db)) -> dict
         "extraction": extraction,
         "cost": cost,
         "grounding": grounding,
+        "agents": [
+            {"agent": r.agent_name, "status": r.status, "error": r.error_message}
+            for r in runs
+        ],
     }
 
 
