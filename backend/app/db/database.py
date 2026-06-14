@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -20,13 +21,31 @@ class Base(DeclarativeBase):
     """Declarative base shared by every ORM model."""
 
 
+def _prepare_url(url: str) -> tuple[str, dict]:
+    """Strip sslmode from URL and return (clean_url, connect_args).
+
+    asyncpg rejects sslmode as a query param; SSL must be passed via connect_args.
+    """
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query, keep_blank_values=True)
+    ssl_mode = params.pop("sslmode", [None])[0]
+    connect_args: dict = {}
+    if ssl_mode in ("require", "verify-ca", "verify-full"):
+        connect_args["ssl"] = True
+    new_query = urlencode({k: v[0] for k, v in params.items()})
+    clean_url = urlunparse(parsed._replace(query=new_query))
+    return clean_url, connect_args
+
+
+_db_url, _connect_args = _prepare_url(settings.DATABASE_URL)
+
 # NullPool (used under tests) avoids reusing asyncpg connections across event
 # loops, which otherwise breaks pytest-asyncio's per-test loops.
-_engine_kwargs: dict = {"echo": False, "pool_pre_ping": True}
+_engine_kwargs: dict = {"echo": False, "pool_pre_ping": True, "connect_args": _connect_args}
 if settings.DB_USE_NULLPOOL:
-    _engine_kwargs = {"echo": False, "poolclass": NullPool}
+    _engine_kwargs = {"echo": False, "poolclass": NullPool, "connect_args": _connect_args}
 
-engine: AsyncEngine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs)
+engine: AsyncEngine = create_async_engine(_db_url, **_engine_kwargs)
 
 async_session_factory = async_sessionmaker(
     engine,
