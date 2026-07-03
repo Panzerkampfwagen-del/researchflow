@@ -34,7 +34,7 @@ flowchart LR
 ```
 
 The four agents run as a **linear pipeline** (`planner → discovery → analysis → synthesis`) on a
-small custom runner (`app/graph/pipeline.py`, ~110 lines) — no orchestration framework. A reusable
+small custom runner (`app/graph/pipeline.py`, ~73 lines) — no orchestration framework. A reusable
 `agent_stage` context manager gives every stage its database transaction, `agent_runs` telemetry
 (tokens, latency, cost), SSE lifecycle events, and Prometheus metrics; the pipeline adds per-node
 retries and error isolation so one stage's failure is recorded and the run continues.
@@ -45,7 +45,7 @@ retries and error isolation so one stage's failure is recorded and the run conti
 
 | Layer            | Technology                                                                 |
 |------------------|----------------------------------------------------------------------------|
-| Orchestration    | Custom async pipeline (~110 lines, retries + error isolation, no framework) |
+| Orchestration    | Custom async pipeline (~73 lines, retries + error isolation, no framework) |
 | API              | FastAPI (async), Pydantic v2, SSE via `asyncio.Queue`                       |
 | LLM              | Groq (Llama 3.3 70B / 3.1 8B) primary, Anthropic Haiku fallback            |
 | Embeddings       | `sentence-transformers` `all-MiniLM-L6-v2` (384-dim), run locally          |
@@ -306,7 +306,7 @@ makes evaluation meaningful. If analysis runs in parallel with discovery, a fail
 in discovery produces partial analysis results with no clean boundary for measurement.
 The linear pipeline means each stage's quality can be measured independently with
 Precision@K, extraction F1, and synthesis coherence as separate, non-confounded metrics.
-Parallelising the paper-level analysis loop within the Analysis agent (30 papers) is a
+Parallelising the paper-level analysis loop within the Analysis agent (15 papers) is a
 separate, safe optimisation — the agent-level pipeline remains sequential.
 
 **Why a monolith instead of microservices?**

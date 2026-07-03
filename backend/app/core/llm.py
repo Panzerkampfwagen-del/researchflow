@@ -41,8 +41,8 @@ EMBED_TASK_QUERY = "retrieval.query"
 
 T = TypeVar("T", bound=BaseModel)
 
-ANTHROPIC_INPUT_COST_PER_1K = 0.00025
-ANTHROPIC_OUTPUT_COST_PER_1K = 0.00125
+ANTHROPIC_INPUT_COST_PER_1K = 0.00080
+ANTHROPIC_OUTPUT_COST_PER_1K = 0.00400
 # Few, short Groq retries: a free-tier daily-quota 429 won't clear mid-request,
 # so a long backoff only stalls the run. Fail fast and let the caller fall back.
 _GROQ_MAX_ATTEMPTS = 2
