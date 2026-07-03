@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     JINA_MODEL: str = "jina-embeddings-v3"
     GROQ_REASONING_MODEL: str = "llama-3.3-70b-versatile"
     GROQ_EXTRACTION_MODEL: str = "llama-3.1-8b-instant"
-    ANTHROPIC_FALLBACK_MODEL: str = "claude-3-5-haiku-20241022"
+    ANTHROPIC_FALLBACK_MODEL: str = "claude-haiku-4-5"
 
     ARXIV_RATE_LIMIT_SECONDS: float = 3.0
     SEMANTIC_SCHOLAR_RATE_LIMIT_SECONDS: float = 1.0
