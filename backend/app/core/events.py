@@ -12,10 +12,15 @@ from datetime import UTC, datetime
 
 _session_queues: dict[str, asyncio.Queue] = {}
 
+# Cap per-session buffering so a slow or absent SSE consumer can't grow the
+# queue without bound. Comfortably exceeds the handful of events a workflow
+# emits; publishers apply back-pressure rather than accumulate past this.
+MAX_QUEUE_SIZE = 1000
+
 
 def create_queue(session_id: str) -> asyncio.Queue:
     """Create (or replace) the event queue for a session and return it."""
-    queue: asyncio.Queue = asyncio.Queue()
+    queue: asyncio.Queue = asyncio.Queue(maxsize=MAX_QUEUE_SIZE)
     _session_queues[session_id] = queue
     return queue
 
@@ -105,8 +110,10 @@ async def citation_verification(session_id: str, result: dict) -> None:
 async def done(session_id: str, paper_count: int) -> None:
     """Emit the terminal ``done`` event for a successful session."""
     await publish(session_id, "done", {"session_id": session_id, "paper_count": paper_count})
+    remove_queue(session_id)
 
 
 async def failed(session_id: str, message: str) -> None:
     """Emit the terminal ``failed`` event for an aborted session."""
     await publish(session_id, "failed", {"message": message})
+    remove_queue(session_id)

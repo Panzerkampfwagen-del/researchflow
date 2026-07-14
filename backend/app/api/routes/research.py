@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import uuid
+from typing import get_type_hints
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +22,7 @@ from app.api.schemas import (
 )
 from app.core import events
 from app.core.config import settings
+from app.core.ratelimit import limiter
 from app.db.database import async_session_factory, get_db
 from app.db.repositories.papers import PaperRepository
 from app.db.repositories.reports import AnalysisRepository, ReportRepository
@@ -55,11 +58,26 @@ def _frame(payload: dict) -> str:
     return f"data: {json.dumps(payload)}\n\n"
 
 
-@router.post("/research", response_model=ResearchCreateResponse, status_code=202)
+async def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
+    """Enforce the optional shared-key auth on protected endpoints.
+
+    A no-op when ``settings.API_KEY`` is empty (the default) so dev and tests are
+    unchanged; otherwise a matching ``X-API-Key`` header is required.
+    """
+    if settings.API_KEY and x_api_key != settings.API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
+@limiter.limit("5/minute")  # per-client cap
+@limiter.limit("30/minute", key_func=lambda: "research-global")  # small global cap
 async def create_research(
-    payload: ResearchRequest, db: AsyncSession = Depends(get_db)
+    request: Request, payload: ResearchRequest, db: AsyncSession = Depends(get_db)
 ) -> ResearchCreateResponse:
-    """Create a session and launch the research workflow in the background."""
+    """Create a session and launch the research workflow in the background.
+
+    ``request`` is required by slowapi's limiter (it reads the client address off
+    it); it is otherwise unused.
+    """
     session_row = await SessionRepository(db).create(payload.query)
     await db.commit()
     session_id = str(session_row.id)
@@ -72,6 +90,24 @@ async def create_research(
     task.add_done_callback(_background_tasks.discard)
 
     return ResearchCreateResponse(session_id=session_id, status="pending")
+
+
+# slowapi wraps the endpoint in its own module namespace, so under
+# ``from __future__ import annotations`` FastAPI can't resolve the body model's
+# (string) annotation and would misread ``payload`` as a query parameter.
+# Re-resolve the underlying function's hints against this module, then register
+# the route explicitly (rather than via ``@router.post``) so the fix lands before
+# FastAPI analyzes the signature.
+_create_research_fn = inspect.unwrap(create_research)
+_create_research_fn.__annotations__ = get_type_hints(_create_research_fn)
+router.add_api_route(
+    "/research",
+    create_research,
+    methods=["POST"],
+    response_model=ResearchCreateResponse,
+    status_code=202,
+    dependencies=[Depends(require_api_key)],
+)
 
 
 async def _event_generator(session_id: str, queue: asyncio.Queue, request: Request):

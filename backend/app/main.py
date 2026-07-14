@@ -16,11 +16,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.routes import papers, reports, research
 from app.core.config import settings
 from app.core.llm import embedding_client
+from app.core.ratelimit import limiter
 from app.db.database import Base, engine
 
 VERSION = "1.4.4"
@@ -82,6 +84,10 @@ app = FastAPI(title="ResearchFlow", version=VERSION, lifespan=lifespan)
 # client) inherit this default rather than reporting a false "degraded".
 app.state.db_ready = True
 
+# Rate limiting: slowapi reads the limiter off app.state; decorated routes
+# (currently only POST /api/research) are throttled, everything else is open.
+app.state.limiter = limiter
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -99,6 +105,16 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
         status_code=exc.status_code,
         content={"error": str(exc.detail), "detail": str(exc.detail)},
     )
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> Response:
+    """Render 429s in the standard envelope, keeping slowapi's retry headers."""
+    response = JSONResponse(
+        status_code=429,
+        content={"error": "Rate limit exceeded", "detail": f"Rate limit exceeded: {exc.detail}"},
+    )
+    return request.app.state.limiter._inject_headers(response, request.state.view_rate_limit)
 
 
 @app.exception_handler(RequestValidationError)

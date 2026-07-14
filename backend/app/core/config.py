@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
 
+    # Optional shared-key auth for POST /api/research. Empty (the default) leaves
+    # the endpoint open so local dev and the test suite are unchanged; set it to
+    # require a matching ``X-API-Key`` header.
+    API_KEY: str = ""
+
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
     FASTEMBED_CACHE_DIR: str = ""  # set to pre-baked path when using fastembed backend
 
