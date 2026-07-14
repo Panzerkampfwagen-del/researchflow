@@ -1,4 +1,4 @@
-"""Pydantic data contracts and the LangGraph state definition.
+"""Pydantic data contracts and the pipeline state definition.
 
 These typed contracts are the interfaces between agents. Every value that flows
 through the workflow is one of these models, which keeps each agent boundary
@@ -87,7 +87,7 @@ class ResearchReport(BaseModel):
 
 
 class ResearchState(TypedDict):
-    """Mutable state threaded through the LangGraph workflow."""
+    """Mutable state threaded through the research pipeline."""
 
     session_id: str
     query: str

@@ -1,7 +1,7 @@
 """In-process pub/sub for server-sent events, keyed by session id.
 
 A single-instance substitute for Redis pub/sub: each session owns an
-``asyncio.Queue`` that the LangGraph workflow publishes to and the SSE endpoint
+``asyncio.Queue`` that the research workflow publishes to and the SSE endpoint
 drains. The trade-off (no cross-instance fan-out) is documented in the README.
 """
 

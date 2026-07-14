@@ -31,7 +31,11 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+    # Single worker: SSE pub/sub, the background research task, and session
+    # params are in-process globals, so a 2nd worker would field /stream requests
+    # for runs it never started and emit spurious "failed" frames. Scale out via
+    # Redis-backed pub/sub (see README) before raising this.
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"
 
   frontend:
     build: ./frontend
